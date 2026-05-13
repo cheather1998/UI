@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Trading System</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; }
+  html, body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .traffic { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .pulse-green { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+    70%  { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  }
+  .card { background: rgba(255,255,255,0.03); }
+  .grid-row:hover { background: rgba(255,255,255,0.03); }
+  .spinner { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Start: green → blue horizontal gradient (per design ref). Dark text for contrast. */
+  .btn-primary       { background: linear-gradient(90deg, #9DE872, #5DB7E0); color: #0b0d10; }
+  .btn-primary:hover { background: linear-gradient(90deg, #ADEC85, #6FC1E5); color: #0b0d10; }
+  /* Shut Down: solid coral. */
+  .btn-danger        { background: #FE6F6F; color: #ffffff; }
+  .btn-danger:hover  { background: #FF8585; color: #ffffff; }
+  .btn-disabled      { background: #16191f !important; color: #4b5563 !important; cursor: not-allowed; }
+</style>
+</head>
+<body class="bg-[#121212] text-slate-200 antialiased">
+
+<div class="max-w-[1280px] mx-auto my-6 rounded-xl overflow-hidden shadow-2xl">
+
+  <!-- Title bar -->
+  <div class="flex items-center gap-3 px-4 py-3 bg-[#121212]">
+    <div class="flex gap-2">
+      <span class="traffic bg-[#ff5f56]"></span>
+      <span class="traffic bg-[#ffbd2e]"></span>
+      <span class="traffic bg-[#27c93f]"></span>
+    </div>
+    <div class="flex-1 text-center text-xs text-slate-400 tracking-wider uppercase">Trading System — Control Panel</div>
+    <div id="systemPill" class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/30 text-xs">
+      <span id="systemDot" class="traffic bg-emerald-500 pulse-green"></span>
+      <span id="systemLabel" class="font-medium text-emerald-300">RUNNING</span>
+    </div>
+  </div>
+
+  <div class="px-8 py-6 space-y-6 bg-[#121212]">
+
+    <!-- Action row -->
+    <section class="flex items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Control Panel</h1>
+        <p class="text-sm text-slate-400 mt-1">
+          Started at <span id="startedAt" class="mono">—</span>
+          · Uptime <span id="uptime" class="mono">—</span>
+        </p>
+      </div>
+      <div class="flex gap-3">
+        <button id="btnStart"
+          class="btn-disabled px-6 py-3 rounded-lg font-semibold tracking-wide flex items-center gap-2 transition">
+          <span>▶</span> Start System
+        </button>
+        <button id="btnShutdown"
+          class="btn-danger px-6 py-3 rounded-lg font-semibold tracking-wide flex items-center gap-2 transition">
+          <span>⏻</span> Shut Down System
+        </button>
+      </div>
+    </section>
+
+    <!-- Manual recovery strip -->
+    <section class="card rounded-xl px-5 py-4">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-400 font-medium">Manual recovery</div>
+          <div class="text-xs text-slate-500 mt-1">Run either step independently if shutdown left residuals. Works in any system state.</div>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <button id="btnCancelAll" data-recovery="cancel"
+            class="px-3 py-2 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span class="recovery-icon">✕</span>
+            <span class="recovery-label">Cancel all orders</span>
+          </button>
+          <button id="btnCloseAll" data-recovery="close"
+            class="px-3 py-2 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span class="recovery-icon">⊝</span>
+            <span class="recovery-label">Close all positions</span>
+          </button>
+        </div>
+      </div>
+      <div id="recoveryStatus" class="hidden mt-3 text-xs px-3 py-2 rounded"></div>
+    </section>
+
+    <!-- Total PnL -->
+    <section class="card rounded-xl p-6 flex items-end justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400 mb-1">Total PnL · since start</div>
+        <div class="flex items-baseline gap-3">
+          <div id="pnlTotal" class="mono text-5xl font-bold text-slate-500">—</div>
+          <div id="pnlPercent" class="text-slate-500 text-sm font-medium">—</div>
+        </div>
+        <div class="text-xs text-slate-500 mt-2">Realized + unrealized · derived from tde_trades + live prices</div>
+      </div>
+      <div class="flex gap-6 text-right">
+        <div>
+          <div class="text-xs text-slate-400 uppercase tracking-wider">Realized</div>
+          <div id="pnlRealized" class="mono text-lg text-slate-500">—</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400 uppercase tracking-wider">Unrealized</div>
+          <div id="pnlUnrealized" class="mono text-lg text-slate-500">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Per-exchange stats -->
+    <section class="card rounded-xl overflow-hidden">
+      <div class="px-6 py-4 flex items-center justify-between">
+        <h2 class="font-semibold text-slate-100">Per-exchange Statistics</h2>
+        <div class="text-xs text-slate-500">Auto-refresh · 5s · <span id="apiBaseLabel" class="mono"></span></div>
+      </div>
+
+      <div id="statsGrid" class="grid grid-cols-7 text-sm"></div>
+    </section>
+
+    <div class="text-xs text-slate-500 text-center pt-2">
+      <span id="connStatus" class="text-emerald-400">●</span>
+      <span id="connStatusText">Connected to backend</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Shutdown modal -->
+<div id="shutdownModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+  <div class="bg-[#121212] rounded-xl p-8 w-[520px] shadow-2xl">
+    <h3 class="text-lg font-semibold mb-2 text-white">Shutting down system</h3>
+    <p class="text-sm text-slate-400 mb-6">Performing graceful shutdown sequence…</p>
+
+    <ul id="shutdownSteps" class="space-y-3">
+      <li data-step="cancel" class="flex items-center gap-3 text-slate-400">
+        <span class="step-icon w-6 h-6 rounded-full bg-slate-700/50 flex items-center justify-center text-xs">1</span>
+        <span class="step-label flex-1">Cancel all open orders</span>
+        <span class="step-status text-xs text-slate-500">pending</span>
+      </li>
+      <li data-step="close"  class="flex items-center gap-3 text-slate-400">
+        <span class="step-icon w-6 h-6 rounded-full bg-slate-700/50 flex items-center justify-center text-xs">2</span>
+        <span class="step-label flex-1">Close all open positions</span>
+        <span class="step-status text-xs text-slate-500">pending</span>
+      </li>
+    </ul>
+
+    <div id="shutdownErrorBox" class="hidden mt-6 p-3 rounded-lg bg-red-900/30 text-red-300 text-sm"></div>
+    <div id="shutdownDoneBox" class="hidden mt-6 p-3 rounded-lg bg-emerald-900/30 text-emerald-300 text-sm">
+      System shut down successfully. All exchanges flat.
+    </div>
+
+    <div class="mt-6 flex gap-2 justify-end">
+      <button id="btnRetry"     class="hidden px-4 py-2 text-sm rounded-lg bg-amber-900/40 text-amber-200 hover:bg-amber-900/60 transition">Retry</button>
+      <button id="btnForceQuit" class="px-4 py-2 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition">Force quit</button>
+      <button id="btnDoneClose" class="hidden px-4 py-2 text-sm rounded-lg bg-white hover:bg-slate-200 text-slate-900 font-medium transition">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-6 right-6 px-4 py-3 rounded-lg bg-slate-800 text-sm text-slate-200 shadow-xl"></div>
+
+<script>
+  // ---------------- Config ----------------
+  // The UI talks to a single sidecar (trading-system-control). For the demo
+  // mock backend, default to :9999. For real, run trading-system-control on
+  // :8081 and append ?api=http://localhost:8081
+  const _qs        = new URLSearchParams(location.search);
+  const API_BASE   = _qs.get('api') || 'http://localhost:9999';
+  const REFRESH_MS = 5000;
+  const EXCHANGES  = ['binance', 'bybit', 'okx', 'kraken', 'gate'];
+  const METRICS = [
+    { key: 'open_orders',      label: 'Open Orders',      fmt: v => String(v) },
+    { key: 'open_positions',   label: 'Open Positions',   fmt: v => String(v) },
+    { key: 'closed_positions', label: 'Closed Positions', fmt: v => String(v) },
+    { key: 'open_usd',         label: '$ Open Positions', fmt: v => '$' + Math.round(v).toLocaleString() },
+    { key: 'balance_usd',      label: '$ Account Balance',fmt: v => '$' + Math.round(v).toLocaleString() },
+  ];
+  document.getElementById('apiBaseLabel').textContent = API_BASE;
+
+  // ---------------- Build stats grid ----------------
+  function buildGrid() {
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML = '';
+    const headerCells = ['Metric', 'Binance', 'Bybit', 'OKX', 'Kraken', 'Gate', 'Total'];
+    headerCells.forEach((h, i) => {
+      const cls = i === 0
+        ? 'px-6 py-3 text-xs uppercase tracking-wider text-slate-500'
+        : (i === 6
+          ? 'px-6 py-3 text-xs uppercase tracking-wider text-emerald-400 text-right'
+          : 'px-4 py-3 text-xs uppercase tracking-wider text-slate-400 text-right');
+      const d = document.createElement('div');
+      d.className = cls;
+      d.textContent = h;
+      grid.appendChild(d);
+    });
+    METRICS.forEach((m) => {
+      const labelCell = document.createElement('div');
+      labelCell.className = 'px-6 py-4 text-slate-300 grid-row';
+      labelCell.textContent = m.label;
+      grid.appendChild(labelCell);
+      EXCHANGES.forEach(ex => {
+        const c = document.createElement('div');
+        c.className = 'px-4 py-4 mono text-right grid-row';
+        c.dataset.cell = ex + ':' + m.key;
+        c.textContent = '—';
+        grid.appendChild(c);
+      });
+      const total = document.createElement('div');
+      total.className = 'px-6 py-4 mono text-right text-emerald-400 font-semibold grid-row';
+      total.dataset.cell = 'total:' + m.key;
+      total.textContent = '—';
+      grid.appendChild(total);
+    });
+  }
+  buildGrid();
+
+  // ---------------- Fetch helpers ----------------
+  async function api(path, opts = {}) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(API_BASE + path, { ...opts, signal: ctrl.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
+  const apiPost = (path, body) => api(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  // ---------------- Connection state ----------------
+  let connected = true;
+  function setConnected(ok, errMsg) {
+    if (connected === ok) return;
+    connected = ok;
+    const dot = document.getElementById('connStatus');
+    const txt = document.getElementById('connStatusText');
+    if (ok) {
+      dot.className = 'text-emerald-400';
+      dot.textContent = '●';
+      txt.textContent = 'Connected to ' + API_BASE;
+    } else {
+      dot.className = 'text-red-400';
+      dot.textContent = '●';
+      txt.textContent = 'API unreachable: ' + (errMsg || '') + ' — is the mock server running?';
+      toast('API unreachable');
+    }
+  }
+
+  // ---------------- Renderers ----------------
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function fmtUptime(sec) {
+    return `${pad(Math.floor(sec/3600))}:${pad(Math.floor((sec%3600)/60))}:${pad(sec%60)}`;
+  }
+
+  let lastStartedAt = null;
+
+  function renderStatus(s) {
+    const dot   = document.getElementById('systemDot');
+    const label = document.getElementById('systemLabel');
+    const pill  = document.getElementById('systemPill');
+    const start = document.getElementById('btnStart');
+    const stop  = document.getElementById('btnShutdown');
+    const startedAtEl = document.getElementById('startedAt');
+    const uptimeEl    = document.getElementById('uptime');
+
+    startedAtEl.textContent = s.started_at || '—';
+    uptimeEl.textContent    = fmtUptime(s.uptime_sec || 0);
+    lastStartedAt = s.started_at;
+
+    const running = s.state === 'running';
+    const halted  = s.state === 'halted';
+    if (running || halted) {
+      const color = halted ? 'amber' : 'emerald';
+      const text  = halted ? 'HALTED' : 'RUNNING';
+      dot.className   = `traffic bg-${color}-500` + (running ? ' pulse-green' : '');
+      label.textContent = text;
+      label.className   = `font-medium text-${color}-300`;
+      pill.className    = `flex items-center gap-2 px-3 py-1 rounded-full bg-${color}-900/30 text-xs`;
+      start.classList.add('btn-disabled'); start.classList.remove('btn-primary');
+      stop.classList.remove('btn-disabled'); stop.classList.add('btn-danger');
+    } else {
+      dot.className   = 'traffic bg-slate-500';
+      label.textContent = 'STOPPED';
+      label.className   = 'font-medium text-slate-300';
+      pill.className    = 'flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-xs';
+      start.classList.remove('btn-disabled'); start.classList.add('btn-primary');
+      stop.classList.add('btn-disabled'); stop.classList.remove('btn-danger');
+    }
+  }
+
+  function renderStats(s) {
+    const all = { ...s.exchanges, total: s.total };
+    Object.entries(all).forEach(([ex, vals]) => {
+      METRICS.forEach(m => {
+        const cell = document.querySelector(`[data-cell="${ex}:${m.key}"]`);
+        if (!cell) return;
+        const v = vals[m.key];
+        cell.textContent = m.fmt(v);
+        cell.classList.toggle('text-slate-500', v === 0 && ex !== 'total');
+      });
+    });
+  }
+
+  function renderPnl(p) {
+    const total = p.total || 0;
+    const realized = p.realized || 0;
+    const unrealized = p.unrealized || 0;
+    const pct = p.percent || 0;
+    const totalEl = document.getElementById('pnlTotal');
+    const pctEl   = document.getElementById('pnlPercent');
+    const rEl     = document.getElementById('pnlRealized');
+    const uEl     = document.getElementById('pnlUnrealized');
+    const sign = total >= 0 ? '+' : '';
+    const fmt  = v => sign + '$' + Math.abs(v).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const fmtSigned = v => (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const cls = total >= 0 ? 'text-emerald-400' : 'text-red-400';
+    totalEl.textContent = fmt(total);
+    totalEl.className   = 'mono text-5xl font-bold ' + cls;
+    pctEl.textContent   = (total >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(2) + '%';
+    pctEl.className     = cls + ' text-sm font-medium';
+    rEl.textContent     = fmtSigned(realized);
+    rEl.className       = 'mono text-lg ' + (realized >= 0 ? 'text-emerald-300' : 'text-red-300');
+    uEl.textContent     = fmtSigned(unrealized);
+    uEl.className       = 'mono text-lg ' + (unrealized >= 0 ? 'text-emerald-300' : 'text-red-300');
+  }
+
+  // ---------------- Toast ----------------
+  function toast(msg, type = 'info') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-xl '
+      + (type === 'error' ? 'bg-red-900/40 text-red-200' :
+         type === 'ok'    ? 'bg-emerald-900/40 text-emerald-200' :
+                            'bg-slate-800 text-slate-200');
+    el.classList.remove('hidden');
+    clearTimeout(window._tt);
+    window._tt = setTimeout(() => el.classList.add('hidden'), 2600);
+  }
+
+  // ---------------- Polling ----------------
+  let sinceTs = 0;
+  async function refreshAll() {
+    try {
+      const [status, stats, pnl] = await Promise.all([
+        api('/api/v1/system/status'),
+        api('/api/v1/dashboard/stats'),
+        api('/api/v1/dashboard/pnl?since=' + sinceTs),
+      ]);
+      setConnected(true);
+      renderStatus(status);
+      renderStats(stats);
+      renderPnl(pnl);
+    } catch (e) {
+      setConnected(false, e.message);
+    }
+  }
+  refreshAll();
+  setInterval(refreshAll, REFRESH_MS);
+
+  // ---------------- Shutdown sequence ----------------
+  function setStep(step, status, sub) {
+    const li   = document.querySelector(`[data-step="${step}"]`);
+    const icon = li.querySelector('.step-icon');
+    const lbl  = li.querySelector('.step-status');
+    const order = { halt:'1', cancel:'2', close:'3' };
+    if (status === 'pending') {
+      icon.textContent = order[step];
+      icon.className = 'step-icon w-6 h-6 rounded-full bg-slate-700/50 flex items-center justify-center text-xs';
+      lbl.textContent = 'pending';
+      lbl.className = 'step-status text-xs text-slate-500';
+      li.className = 'flex items-center gap-3 text-slate-400';
+    } else if (status === 'running') {
+      icon.innerHTML = `<span class="spinner inline-block w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full"></span>`;
+      icon.className = 'step-icon w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center';
+      li.className = 'flex items-center gap-3 text-amber-300';
+      lbl.textContent = sub || 'in progress';
+      lbl.className = 'step-status text-xs text-amber-400 mono';
+    } else if (status === 'done') {
+      icon.innerHTML = '✓';
+      icon.className = 'step-icon w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold';
+      li.className = 'flex items-center gap-3 text-emerald-300';
+      lbl.textContent = sub || 'done';
+      lbl.className = 'step-status text-xs text-emerald-400 mono';
+    } else if (status === 'error') {
+      icon.innerHTML = '✕';
+      icon.className = 'step-icon w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold';
+      li.className = 'flex items-center gap-3 text-red-300';
+      lbl.textContent = sub || 'failed';
+      lbl.className = 'step-status text-xs text-red-400 mono';
+    }
+  }
+
+  let shutdownStep = 0;          // 0=cancel, 1=close
+  function resetShutdownUI() {
+    ['cancel','close'].forEach(s => setStep(s,'pending'));
+    document.getElementById('shutdownDoneBox').classList.add('hidden');
+    document.getElementById('shutdownErrorBox').classList.add('hidden');
+    document.getElementById('btnDoneClose').classList.add('hidden');
+    document.getElementById('btnRetry').classList.add('hidden');
+    document.getElementById('btnForceQuit').classList.remove('hidden');
+  }
+
+  async function doStep(step) {
+    if (step === 0) {
+      setStep('cancel','running','contacting exchanges…');
+      const r = await apiPost('/admin/cancel-all-orders');
+      const failed = (r.failed || []).length;
+      const sub = failed > 0
+        ? `${r.cancelled} ok / ${r.total} total · ${failed} failed`
+        : `${r.cancelled} / ${r.total}`;
+      setStep('cancel','done', sub);
+    } else if (step === 1) {
+      setStep('close','running','closing positions…');
+      const r = await apiPost('/admin/close-all-positions');
+      const failed = (r.failed || []).length;
+      const sub = failed > 0
+        ? `${r.closed} ok / ${r.total} total · ${failed} failed`
+        : `${r.closed} / ${r.total}`;
+      setStep('close','done', sub);
+    }
+  }
+
+  async function runShutdown(fromStep = 0) {
+    document.getElementById('shutdownModal').classList.remove('hidden');
+    if (fromStep === 0) resetShutdownUI();
+
+    for (shutdownStep = fromStep; shutdownStep < 2; shutdownStep++) {
+      try {
+        await doStep(shutdownStep);
+      } catch (e) {
+        const stepName = ['cancel','close'][shutdownStep];
+        setStep(stepName, 'error', 'http error');
+        const box = document.getElementById('shutdownErrorBox');
+        box.textContent = `Step ${shutdownStep+1} failed: ${e.message}. Click Retry to resume from this step.`;
+        box.classList.remove('hidden');
+        document.getElementById('btnRetry').classList.remove('hidden');
+        return;
+      }
+    }
+    // mark backend state as stopped after both steps complete
+    try { await apiPost('/admin/stop'); } catch (_) { /* non-fatal */ }
+    document.getElementById('shutdownDoneBox').classList.remove('hidden');
+    document.getElementById('btnForceQuit').classList.add('hidden');
+    document.getElementById('btnDoneClose').classList.remove('hidden');
+    toast('System shut down successfully', 'ok');
+    refreshAll();
+  }
+
+  // ---------------- Bind ----------------
+  document.getElementById('btnShutdown').addEventListener('click', () => {
+    if (document.getElementById('btnShutdown').classList.contains('btn-disabled')) return;
+    runShutdown(0);
+  });
+  document.getElementById('btnStart').addEventListener('click', async () => {
+    if (document.getElementById('btnStart').classList.contains('btn-disabled')) return;
+    try {
+      await apiPost('/admin/start');
+      sinceTs = Math.floor(Date.now() / 1000);
+      toast('System started', 'ok');
+      refreshAll();
+    } catch (e) {
+      toast('Failed to start: ' + e.message, 'error');
+    }
+  });
+  document.getElementById('btnRetry').addEventListener('click', () => {
+    document.getElementById('shutdownErrorBox').classList.add('hidden');
+    document.getElementById('btnRetry').classList.add('hidden');
+    runShutdown(shutdownStep);
+  });
+
+  // ---------------- Manual recovery buttons ----------------
+  function showRecoveryStatus(msg, kind) {
+    const el = document.getElementById('recoveryStatus');
+    const styles = {
+      ok:    'bg-emerald-900/30 text-emerald-300',
+      warn:  'bg-amber-900/30 text-amber-300',
+      error: 'bg-red-900/30 text-red-300',
+    };
+    el.className = 'mt-3 text-xs px-3 py-2 rounded ' + (styles[kind] || styles.ok);
+    el.textContent = msg;
+  }
+
+  async function runRecoveryStep(action, btnId) {
+    const btn = document.getElementById(btnId);
+    const labelEl = btn.querySelector('.recovery-label');
+    const iconEl  = btn.querySelector('.recovery-icon');
+    const origLabel = labelEl.textContent;
+    const origIcon  = iconEl.textContent;
+
+    // disable both while one runs to avoid conflicting calls
+    document.querySelectorAll('[data-recovery]').forEach(b => b.disabled = true);
+    iconEl.innerHTML = '<span class="spinner inline-block w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full"></span>';
+    labelEl.textContent = origLabel + ' …';
+
+    try {
+      if (action === 'cancel') {
+        const r = await apiPost('/admin/cancel-all-orders');
+        const failed = (r.failed || []).length;
+        if (r.total === 0) {
+          showRecoveryStatus('No open orders to cancel.', 'ok');
+        } else {
+          showRecoveryStatus(
+            `Cancelled ${r.cancelled} / ${r.total}` +
+            (failed ? ` · ${failed} failed (${r.failed.map(f => f.exchange + ':' + f.error).slice(0,2).join(', ')}${failed > 2 ? '…' : ''})` : ''),
+            failed ? 'warn' : 'ok');
+        }
+      } else if (action === 'close') {
+        const r = await apiPost('/admin/close-all-positions');
+        const failed = (r.failed || []).length;
+        if (r.total === 0) {
+          showRecoveryStatus('No open positions to close.', 'ok');
+        } else {
+          showRecoveryStatus(
+            `Closed ${r.closed} / ${r.total}` +
+            (failed ? ` · ${failed} failed (${r.failed.map(f => f.exchange + ':' + f.error).slice(0,2).join(', ')}${failed > 2 ? '…' : ''})` : ''),
+            failed ? 'warn' : 'ok');
+        }
+      }
+      refreshAll();
+    } catch (e) {
+      showRecoveryStatus('Failed: ' + e.message, 'error');
+    } finally {
+      iconEl.textContent = origIcon;
+      labelEl.textContent = origLabel;
+      document.querySelectorAll('[data-recovery]').forEach(b => b.disabled = false);
+    }
+  }
+
+  document.getElementById('btnCancelAll').addEventListener('click', () => runRecoveryStep('cancel', 'btnCancelAll'));
+  document.getElementById('btnCloseAll').addEventListener('click',  () => runRecoveryStep('close',  'btnCloseAll'));
+  document.getElementById('btnDoneClose').addEventListener('click', () => {
+    document.getElementById('shutdownModal').classList.add('hidden');
+  });
+  document.getElementById('btnForceQuit').addEventListener('click', () => {
+    document.getElementById('shutdownModal').classList.add('hidden');
+    toast('Force quit — system halt may be incomplete', 'error');
+  });
+</script>
+</body>
+</html>
