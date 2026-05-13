@@ -1,20 +1,21 @@
 // Trading System Control — sidecar service that powers the Desktop UI
 // without modifying the TES or AGENT source trees.
 //
-//   • UI               → this service (port :8081 by default)
-//   • this service     → TES :8080 (HTTP, for cancel/close/balance)
-//   • this service     → MongoDB  (read tde_positions, tde_trades)
-//   • this service     → Redis    (read tde:order:json:v1:* for open count)
+//   - UI               → this service (port :8081 by default)
+//   - this service     → TES :8080 (HTTP, for cancel/close/balance)
+//   - this service     → MongoDB  (read tde_positions, tde_trades)
+//   - this service     → Redis    (read tde:order:json:v1:* for open count)
 //
 // Endpoints:
-//   GET  /health
-//   GET  /api/v1/system/status
-//   GET  /api/v1/dashboard/stats
-//   GET  /api/v1/dashboard/pnl?since=<unix_ts>
-//   POST /admin/cancel-all-orders   { "exchange": "binance" }   // optional filter
-//   POST /admin/close-all-positions
-//   POST /admin/start                 // resets started_at, state=running
-//   POST /admin/stop                  // state=stopped
+//
+//	GET  /health
+//	GET  /api/v1/system/status
+//	GET  /api/v1/dashboard/stats
+//	GET  /api/v1/dashboard/pnl?since=<unix_ts>
+//	POST /admin/cancel-all-orders   { "exchange": "binance" }   // optional filter
+//	POST /admin/close-all-positions
+//	POST /admin/start                 // resets started_at, state=running
+//	POST /admin/stop                  // state=stopped
 package main
 
 import (
@@ -44,21 +45,27 @@ var (
 )
 
 type Config struct {
-	Port       string
-	MongoURI   string
-	MongoDB    string
-	RedisAddr  string
-	TESBaseURL string
+	Port                string
+	MongoURI            string
+	MongoDB             string
+	RedisAddr           string
+	TESBaseURL          string
+	DecisionBaseURL     string
+	ArbiumBaseURL       string
+	TradingAgentBaseURL string
 }
 
 func loadConfig() Config {
 	_ = godotenv.Load()
 	return Config{
-		Port:       envOr("CONTROL_PORT", "8081"),
-		MongoURI:   envOr("MONGO_URI", "mongodb://localhost:27017"),
-		MongoDB:    envOr("MONGO_DATABASE", "crypto_trading"),
-		RedisAddr:  envOr("REDIS_ADDR", "localhost:6379"),
-		TESBaseURL: envOr("TES_BASE_URL", "http://localhost:8080"),
+		Port:                envOr("CONTROL_PORT", "8081"),
+		MongoURI:            envOr("MONGO_URI", "mongodb://localhost:27017"),
+		MongoDB:             envOr("MONGO_DATABASE", "crypto_trading"),
+		RedisAddr:           envOr("REDIS_ADDR", "localhost:6379"),
+		TESBaseURL:          envOr("TES_BASE_URL", "http://localhost:8080"),
+		DecisionBaseURL:     envOr("DECISION_BASE_URL", "http://localhost:3003"),
+		ArbiumBaseURL:       envOr("ARBIUM_BASE_URL", ""),
+		TradingAgentBaseURL: envOr("TRADING_AGENT_BASE_URL", ""),
 	}
 }
 
@@ -95,6 +102,7 @@ func main() {
 	}
 
 	tesURL = strings.TrimRight(cfg.TESBaseURL, "/")
+	endpointRegistry = loadEndpointRegistry()
 	SystemSetState("running")
 
 	mux := http.NewServeMux()
@@ -102,6 +110,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/system/status", getStatus)
 	mux.HandleFunc("GET /api/v1/dashboard/stats", getStats)
 	mux.HandleFunc("GET /api/v1/dashboard/pnl", getPnL)
+	mux.HandleFunc("GET /api/v1/endpoints", getEndpoints)
+	mux.HandleFunc("GET /api/v1/upstreams/status", getUpstreamStatus)
 	mux.HandleFunc("POST /admin/cancel-all-orders", cancelAllOrders)
 	mux.HandleFunc("POST /admin/close-all-positions", closeAllPositions)
 	mux.HandleFunc("POST /admin/start", startAction)

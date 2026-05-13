@@ -1,0 +1,115 @@
+{
+  "version": "0.1.0",
+  "generated_from_private_repos": {
+    "arbium": "Aylab-company/Arbium",
+    "trading_agent": "Aylab-company/trading-agent",
+    "trade_execution_system": "Aylab-company/trade-execution-system",
+    "decision_making_service": "Aylab-company/decision-making-service"
+  },
+  "notes": [
+    "This UI repository does not import or modify any upstream repository code.",
+    "GitHub repositories are used as source-of-truth for endpoint discovery only.",
+    "Runtime calls must target running services, not github.com URLs."
+  ],
+  "services": {
+    "ui_control_panel": {
+      "default_base_url": "http://localhost:8081",
+      "owned_by_this_repo": true,
+      "endpoints": {
+        "health": { "method": "GET", "path": "/health" },
+        "systemStatus": { "method": "GET", "path": "/api/v1/system/status" },
+        "dashboardStats": { "method": "GET", "path": "/api/v1/dashboard/stats" },
+        "dashboardPnl": { "method": "GET", "path": "/api/v1/dashboard/pnl?since={unix_ts}" },
+        "cancelAllOrders": { "method": "POST", "path": "/admin/cancel-all-orders" },
+        "closeAllPositions": { "method": "POST", "path": "/admin/close-all-positions" },
+        "start": { "method": "POST", "path": "/admin/start" },
+        "stop": { "method": "POST", "path": "/admin/stop" }
+      }
+    },
+    "trade_execution_system": {
+      "repo": "Aylab-company/trade-execution-system",
+      "default_base_url": "http://localhost:8080",
+      "source_files": [
+        "main.go",
+        "binance_service.go",
+        "bybit_service.go",
+        "okx_service.go",
+        "kraken_service.go",
+        "gate_service.go",
+        "position_service.go",
+        "trading_history_service.go",
+        "price_stream_service.go",
+        "comprehensive_price_stream.go"
+      ],
+      "endpoints": {
+        "health": { "method": "GET", "path": "/health" },
+        "metrics": { "method": "GET", "path": "/metrics" },
+        "positionsAll": { "method": "GET", "path": "/api/v1/positions" },
+        "positionsByExchange": { "method": "GET", "path": "/api/v1/positions/{exchange}" },
+        "tradeHistory": { "method": "GET", "path": "/api/v1/history/trades" },
+        "priceWebSocket": { "method": "WS", "path": "/ws/prices" },
+        "allPricesWebSocket": { "method": "WS", "path": "/ws/all-prices" },
+        "exchangePricesWebSocket": { "method": "WS", "path": "/ws/exchanges/{exchange}" },
+        "symbolPricesWebSocket": { "method": "WS", "path": "/ws/symbols/{symbol}" },
+        "exchangeSpotBuy": { "method": "POST", "path": "/api/v1/{exchange}/spot/buy", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeSpotSell": { "method": "POST", "path": "/api/v1/{exchange}/spot/sell", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeSpotCancel": { "method": "POST", "path": "/api/v1/{exchange}/spot/cancel", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeSpotBalance": { "method": "GET", "path": "/api/v1/{exchange}/spot/balance", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeFuturesBuy": { "method": "POST", "path": "/api/v1/{exchange}/futures/buy", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeFuturesSell": { "method": "POST", "path": "/api/v1/{exchange}/futures/sell", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeFuturesClose": { "method": "POST", "path": "/api/v1/{exchange}/futures/close", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeFuturesCancel": { "method": "POST", "path": "/api/v1/{exchange}/futures/cancel", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangeFuturesBalance": { "method": "GET", "path": "/api/v1/{exchange}/futures/balance", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "exchangePnl": { "method": "GET", "path": "/api/v1/{exchange}/pnl", "exchanges": ["binance", "bybit", "okx", "kraken", "gate"] },
+        "binanceMarginBalance": { "method": "GET", "path": "/api/v1/binance/margin/balance" },
+        "gateSyncDepositsWithdrawals": { "method": "POST", "path": "/api/v1/gate/sync/deposits-withdrawals" }
+      }
+    },
+    "decision_making_service": {
+      "repo": "Aylab-company/decision-making-service",
+      "default_base_url": "http://localhost:3003",
+      "source_file": "internal/server/router.go",
+      "endpoints": {
+        "decide": { "method": "POST", "path": "/decide" },
+        "closeTrade": { "method": "POST", "path": "/api/v1/close" },
+        "health": { "method": "GET", "path": "/health" },
+        "pricesWebSocket": { "method": "WS", "path": "/ws/prices" },
+        "metrics": { "method": "GET", "path": "/metrics" },
+        "orderStatus": { "method": "POST", "path": "/api/v1/order/status" },
+        "manualApprove": { "method": "POST", "path": "/api/v1/admin/override/approve" },
+        "manualReject": { "method": "POST", "path": "/api/v1/admin/override/reject" },
+        "tradeRecord": { "method": "GET", "path": "/api/v1/admin/trade/{opportunity_id}" },
+        "tradeState": { "method": "GET", "path": "/api/v1/admin/trade/{opportunity_id}/state" },
+        "transitionTradeState": { "method": "POST", "path": "/api/v1/admin/trade/{opportunity_id}/state" },
+        "auditLogs": { "method": "GET", "path": "/api/v1/admin/audit/{opportunity_id}" },
+        "performanceStats": { "method": "GET", "path": "/api/v1/admin/performance/stats" },
+        "tradesByState": { "method": "GET", "path": "/api/v1/admin/trades/state/{state}" },
+        "exchangeOrderProxy": { "method": "POST", "path": "/api/v1/{exchange}/{market}/{side}", "exchanges": ["binance", "kraken", "bybit", "gate", "okx"], "markets": ["spot", "futures"], "sides": ["buy", "sell"] }
+      }
+    },
+    "trading_agent": {
+      "repo": "Aylab-company/trading-agent",
+      "default_base_url": null,
+      "notes": [
+        "The current arbitrage-realtime service is primarily a long-running engine that calls decision-making-service.",
+        "No stable HTTP admin API for stop-creating-new-orders was found without changing this repo.",
+        "UI must not claim to stop new order creation unless trading-agent later exposes an existing endpoint."
+      ],
+      "outbound_dependencies": {
+        "decisionDecide": { "method": "POST", "path": "/decide", "base_env": "DECISION_API_URL" },
+        "decisionClose": { "method": "POST", "path": "/api/v1/close", "base_env": "DECISION_API_URL" }
+      }
+    },
+    "arbium": {
+      "repo": "Aylab-company/Arbium",
+      "default_base_url": "http://localhost:{account_api_port}",
+      "source_file": "src/api/server.js",
+      "endpoints": {
+        "health": { "method": "GET", "path": "/health" },
+        "placeTrade": { "method": "POST", "path": "/trade" },
+        "closeAll": { "method": "POST", "path": "/close-all" },
+        "screenshot": { "method": "GET", "path": "/screenshot" }
+      }
+    }
+  }
+}
