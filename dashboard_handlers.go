@@ -78,9 +78,16 @@ func fetchBalancesByExchange(ctx context.Context) map[string]float64 {
 				cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				var resp struct {
 					TotalUSDTValue float64 `json:"total_usdt_value"`
+					Data           struct {
+						TotalUSDTValue float64 `json:"total_usdt_value"`
+					} `json:"data"`
 				}
 				if err := tesGetJSON(cctx, fmt.Sprintf("/api/v1/%s/%s/balance", ex, m), &resp); err == nil {
-					v += resp.TotalUSDTValue
+					if resp.Data.TotalUSDTValue > 0 {
+						v += resp.Data.TotalUSDTValue
+					} else {
+						v += resp.TotalUSDTValue
+					}
 				}
 				cancel()
 			}
